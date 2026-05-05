@@ -9,40 +9,15 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function extractVerificationCode(message: DomainEmailMessage) {
-  const text = `${message.subject}\n${message.text}\n${message.content}`;
-  const patterns = [
-    /verification code[:：\s]+(\d{6})/i,
-    /code[:：\s]+(\d{6})/i,
-    /验证码[:：\s]*(\d{6})/i,
-    /\b(\d{6})\b/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-
-  return null;
-}
-
-export function maskCode(code: string) {
-  return `${code.slice(0, 2)}****`;
-}
-
 function parseProviderTime(value: string) {
   const normalized = value.replace(" ", "T");
   const date = new Date(normalized.endsWith("Z") ? normalized : `${normalized}Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export type VerificationEmail = Pick<DomainEmailMessage, "emailId" | "sendEmail" | "sendName" | "subject" | "toEmail" | "toName" | "createTime" | "content" | "text"> & {
-  verificationCode: string | null;
-};
+export type VerificationEmail = Pick<DomainEmailMessage, "emailId" | "sendEmail" | "sendName" | "subject" | "toEmail" | "toName" | "createTime" | "content" | "text">;
 
 export type VerificationCodeResult = {
-  code: string;
-  codes: string[];
   emails: VerificationEmail[];
 };
 
@@ -85,23 +60,20 @@ export async function fetchVerificationCode(input: {
           createTime: message.createTime,
           content: message.content,
           text: message.text,
-          verificationCode: extractVerificationCode(message),
         });
         if (emails.length === 3) break;
       }
 
       if (emails.length > 0) {
-        const codes = emails.flatMap((email) => (email.verificationCode ? [email.verificationCode] : []));
         await prisma.emailCodeRequest.update({
           where: { id: input.requestId },
           data: {
             status: EmailCodeRequestStatus.SUCCESS,
-            verificationCodeMasked: codes[0] ? maskCode(codes[0]) : null,
             providerMessageId: String(emails[0].emailId),
             completedAt: new Date(),
           },
         });
-        return { code: codes[0] || "", codes, emails };
+        return { emails };
       }
     } catch (error) {
       lastError = error instanceof Error ? error.message : "邮件接口查询失败";

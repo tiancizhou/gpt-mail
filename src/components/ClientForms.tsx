@@ -60,20 +60,17 @@ type VerificationEmail = {
   createTime: string;
   content: string;
   text: string;
-  verificationCode: string | null;
 };
 
 export function RedeemForm() {
   const [code, setCode] = useState("");
   const [state, setState] = useState<ApiState<{ data: { remainingUses: number; validUntil: string | null; status: string } }>>({ loading: false });
-  const [verificationCodes, setVerificationCodes] = useState<string[]>([]);
-  const [verificationEmails, setVerificationEmails] = useState<VerificationEmail[]>([]);
+  const [emails, setEmails] = useState<VerificationEmail[]>([]);
   const [requesting, setRequesting] = useState(false);
 
   async function redeem(event: FormEvent) {
     event.preventDefault();
-    setVerificationCodes([]);
-    setVerificationEmails([]);
+    setEmails([]);
     setState({ loading: true });
     try {
       const data = await postJson<{ data: { remainingUses: number; validUntil: string | null; status: string } }>("/api/cdk/redeem", { code });
@@ -85,12 +82,10 @@ export function RedeemForm() {
 
   async function requestCode() {
     setRequesting(true);
-    setVerificationCodes([]);
-    setVerificationEmails([]);
+    setEmails([]);
     try {
-      const data = await postJson<{ data: { code: string; codes?: string[]; emails?: VerificationEmail[]; cdk: { remainingUses: number; validUntil: string | null; status: string } } }>("/api/cdk/request-code", { code });
-      setVerificationCodes(data.data.codes?.length ? data.data.codes : data.data.code ? [data.data.code] : []);
-      setVerificationEmails(data.data.emails || []);
+      const data = await postJson<{ data: { emails?: VerificationEmail[]; cdk: { remainingUses: number; validUntil: string | null; status: string } } }>("/api/cdk/request-code", { code });
+      setEmails(data.data.emails || []);
       setState({ data: { data: data.data.cdk }, loading: false });
     } catch (error) {
       setState((current) => ({ ...current, error: error instanceof Error ? error.message : "取码失败", loading: false }));
@@ -100,52 +95,41 @@ export function RedeemForm() {
   }
 
   return (
-    <div className="rounded-3xl border border-pink-200 bg-white/80 p-6 shadow-lg shadow-pink-100/50 backdrop-blur-sm">
-      <form onSubmit={redeem} className="space-y-4">
+    <div className="hud-panel p-0">
+      <form onSubmit={redeem} className="p-5 pb-0 space-y-3">
         <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="输入 CDK，例如 GM-XXXX-XXXX-XXXX" className="field" required />
         <button disabled={state.loading} className="btn">
           {state.loading ? "校验中..." : "兑换或查看 CDK"}
         </button>
       </form>
-      {state.error && <p className="mt-4 text-sm text-rose-400">{state.error}</p>}
+      {state.error && <p className="px-5 pt-4 text-sm text-rose-400">{state.error}</p>}
       {state.data && (
-        <div className="mt-6 space-y-3 rounded-2xl bg-violet-50/80 border border-violet-200 p-4">
-          <p className="text-violet-600">状态：{state.data.data.status}</p>
-          <p className="text-violet-600">剩余取码次数：{state.data.data.remainingUses}</p>
-          <p className="text-violet-600">有效期：{state.data.data.validUntil ? new Date(state.data.data.validUntil).toLocaleString() : "未激活"}</p>
+        <div className="mx-5 mt-5 border-t border-cyan-500/15 pt-4 space-y-3">
+          <p className="text-cyan-300 text-sm">状态：<span className="text-cyan-100">{state.data.data.status}</span></p>
+          <p className="text-cyan-300 text-sm">剩余取码次数：<span className="text-cyan-100">{state.data.data.remainingUses}</span></p>
+          <p className="text-cyan-300 text-sm">有效期：<span className="text-cyan-100">{state.data.data.validUntil ? new Date(state.data.data.validUntil).toLocaleString() : "未激活"}</span></p>
           <button
             onClick={requestCode}
             disabled={requesting || state.data.data.remainingUses <= 0}
-            className="w-full rounded-xl bg-gradient-to-r from-teal-300 to-emerald-300 px-4 py-3 font-semibold text-white shadow-md shadow-teal-200/50 transition-all duration-250 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-teal-200/60 active:translate-y-0 disabled:opacity-60"
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-400 px-4 py-3 font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all duration-200 ease-out hover:shadow-emerald-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
           >
             {requesting ? "正在查询邮件..." : "获取验证码"}
           </button>
         </div>
       )}
-      {verificationCodes.length > 0 && (
-        <div className="mt-6 space-y-3 rounded-2xl bg-gradient-to-br from-pink-50 to-amber-50 border border-pink-200 p-5 text-center shadow-md shadow-pink-100/40">
-          <p className="text-sm font-medium text-pink-400">最近获取到的验证码</p>
-          {verificationCodes.map((verificationCode, index) => (
-            <div key={`${verificationCode}-${index}`} className={index === 0 ? "text-4xl font-bold tracking-widest text-violet-600" : "text-2xl font-semibold tracking-widest text-pink-400"}>
-              {verificationCode}
-            </div>
-          ))}
-        </div>
-      )}
-      {verificationEmails.length > 0 && (
-        <div className="mt-6 space-y-4">
-          {verificationEmails.map((email) => (
-            <article key={email.emailId} className="overflow-hidden rounded-2xl border border-pink-200 bg-white/90 shadow-sm">
-              <div className="space-y-1 border-b border-pink-100 p-4 text-sm text-violet-500">
-                <p className="font-semibold text-violet-700">{email.subject || "无主题"}</p>
+      {emails.length > 0 && (
+        <div className="mt-5 divide-y divide-cyan-500/15">
+          {emails.map((email) => (
+            <div key={email.emailId} className="px-5 py-4">
+              <div className="space-y-1 text-sm text-slate-400">
+                <p className="font-semibold text-cyan-100">{email.subject || "无主题"}</p>
                 <p>发件人：{email.sendName ? `${email.sendName} <${email.sendEmail}>` : email.sendEmail}</p>
                 <p>收件人：{email.toName ? `${email.toName} <${email.toEmail}>` : email.toEmail}</p>
                 <p>时间：{email.createTime}</p>
-                {email.verificationCode && <p className="text-teal-500 font-semibold">验证码：{email.verificationCode}</p>}
               </div>
-              {email.text && <pre className="whitespace-pre-wrap break-words p-4 text-sm text-violet-600/80">{email.text}</pre>}
-              {email.content && <iframe title={`邮件 HTML ${email.emailId}`} sandbox="" srcDoc={email.content} className="h-80 w-full bg-white rounded-b-2xl" />}
-            </article>
+              {email.text && <pre className="mt-3 whitespace-pre-wrap break-words text-sm text-slate-300">{email.text}</pre>}
+              {email.content && <iframe title={`邮件 HTML ${email.emailId}`} sandbox="" srcDoc={email.content} className="mt-3 h-80 w-full bg-white" />}
+            </div>
           ))}
         </div>
       )}
