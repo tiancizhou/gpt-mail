@@ -42,6 +42,10 @@ export const cdkCodeSchema = z.object({
   code: z.string().min(8).max(64),
 });
 
+export const cdkAccountLogsSchema = z.object({
+  email: z.string().email(),
+});
+
 export const testEmailListSchema = z.object({
   email: z.string().email(),
 });

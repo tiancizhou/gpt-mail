@@ -62,6 +62,26 @@ type VerificationEmail = {
   text: string;
 };
 
+type AccountLogsData = {
+  account: { loginEmail: string } | null;
+  cdks: Array<{
+    displayCodeLast4: string;
+    status: string;
+    remainingUses: number;
+    maxUses: number;
+    activatedAt: string | null;
+    validUntil: string | null;
+    wechatName: string | null;
+  }>;
+  recentRequests: Array<{
+    displayCodeLast4: string | null;
+    wechatName: string | null;
+    status: string;
+    createdAt: string;
+    completedAt: string | null;
+  }>;
+};
+
 function formatProviderTime(value: string) {
   const normalized = value.trim().replace(" ", "T");
   const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
@@ -151,6 +171,94 @@ export function RedeemForm() {
         </div>
       )}
     </div>
+  );
+}
+
+export function AccountLogsLookupForm() {
+  const [state, setState] = useState<ApiState<{ data: AccountLogsData }>>({ loading: false });
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setState({ loading: true });
+    const form = new FormData(event.currentTarget);
+    try {
+      const data = await postJson<{ data: AccountLogsData }>("/api/cdk/account-logs", { email: form.get("email") });
+      setState({ data, loading: false });
+    } catch (error) {
+      setState({ error: error instanceof Error ? error.message : "查询失败", loading: false });
+    }
+  }
+
+  const logs = state.data?.data;
+
+  return (
+    <section className="hud-panel p-5 space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold text-cyan-100">拼车监督查询</h2>
+        <p className="mt-2 text-sm text-slate-400">输入共享账号邮箱，查看绑定的 CDK 微信用户和近期取码记录。</p>
+      </div>
+      <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
+        <input name="email" type="email" placeholder="共享账号邮箱" className="field" required />
+        <button disabled={state.loading} className="btn sm:w-36">
+          {state.loading ? "查询中..." : "查询日志"}
+        </button>
+      </form>
+      {state.error && <p className="text-sm text-rose-400">{state.error}</p>}
+      {logs && !logs.account && <p className="text-sm text-slate-400">未查询到该邮箱的拼车记录，或该账号暂无公开记录。</p>}
+      {logs?.account && (
+        <div className="space-y-5 border-t border-cyan-500/15 pt-5">
+          <p className="text-sm text-cyan-300">共享邮箱：<span className="text-cyan-100">{logs.account.loginEmail}</span></p>
+          <div className="space-y-3">
+            <h3 className="font-semibold text-cyan-100">CDK 绑定用户</h3>
+            {logs.cdks.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead className="text-slate-400">
+                    <tr className="border-b border-cyan-500/15">
+                      <th className="py-2 pr-3">CDK</th>
+                      <th className="py-2 pr-3">微信用户</th>
+                      <th className="py-2 pr-3">状态</th>
+                      <th className="py-2 pr-3">次数</th>
+                      <th className="py-2 pr-3">有效期</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-cyan-500/10 text-slate-300">
+                    {logs.cdks.map((cdk, index) => (
+                      <tr key={`${cdk.displayCodeLast4}-${index}`}>
+                        <td className="py-2 pr-3 font-mono text-cyan-100">****{cdk.displayCodeLast4}</td>
+                        <td className="py-2 pr-3">{cdk.wechatName || "未绑定"}</td>
+                        <td className="py-2 pr-3">{cdk.status}</td>
+                        <td className="py-2 pr-3">{cdk.remainingUses}/{cdk.maxUses}</td>
+                        <td className="py-2 pr-3">{cdk.validUntil ? formatProviderTime(cdk.validUntil) : "未激活"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">该账号暂无 CDK 记录。</p>
+            )}
+          </div>
+          <div className="space-y-3">
+            <h3 className="font-semibold text-cyan-100">近期取码记录</h3>
+            {logs.recentRequests.length > 0 ? (
+              <div className="space-y-3">
+                {logs.recentRequests.map((request, index) => (
+                  <div key={`${request.createdAt}-${index}`} className="rounded-2xl border border-cyan-500/15 bg-slate-950/40 p-3 text-sm text-slate-300">
+                    <p className="text-cyan-100">{request.wechatName || "未知用户"} / {request.displayCodeLast4 ? `****${request.displayCodeLast4}` : "无 CDK"}</p>
+                    <p className="mt-1">状态：{request.status}</p>
+                    <p>创建时间：{formatProviderTime(request.createdAt)}</p>
+                    {request.completedAt && <p>完成时间：{formatProviderTime(request.completedAt)}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-400">该账号暂无近期取码记录。</p>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
