@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     const accountId = account.id as string;
     const [cdksResult, requestsResult] = await Promise.all([
       db.execute({
-        sql: "SELECT c.displayCodeLast4, c.status, c.remainingUses, c.maxUses, c.activatedAt, c.validUntil, u.wechatName, u.name FROM Cdk c LEFT JOIN User u ON c.redeemedByUserId = u.id WHERE c.gptAccountId = ? ORDER BY CASE c.status WHEN 'ACTIVE' THEN 0 WHEN 'UNUSED' THEN 1 WHEN 'EXHAUSTED' THEN 2 WHEN 'EXPIRED' THEN 3 WHEN 'REVOKED' THEN 4 ELSE 5 END, c.createdAt DESC LIMIT 50",
+        sql: "SELECT c.displayCodeLast4, c.status, c.remainingUses, c.maxUses, c.activatedAt, c.validUntil, u.wechatName, u.name, (SELECT COUNT(*) FROM EmailCodeRequest e WHERE e.sourceType = 'CDK' AND e.cdkId = c.id AND e.status = 'SUCCESS') AS successRequestCount, (SELECT COUNT(*) FROM EmailCodeRequest e WHERE e.sourceType = 'CDK' AND e.cdkId = c.id) AS totalRequestCount FROM Cdk c LEFT JOIN User u ON c.redeemedByUserId = u.id WHERE c.gptAccountId = ? ORDER BY CASE c.status WHEN 'ACTIVE' THEN 0 WHEN 'UNUSED' THEN 1 WHEN 'EXHAUSTED' THEN 2 WHEN 'EXPIRED' THEN 3 WHEN 'REVOKED' THEN 4 ELSE 5 END, c.createdAt DESC LIMIT 50",
         args: [accountId],
       }),
       db.execute({
@@ -45,6 +45,8 @@ export async function POST(request: NextRequest) {
           activatedAt: row.activatedAt as string | null,
           validUntil: row.validUntil as string | null,
           wechatName: (row.wechatName || row.name || null) as string | null,
+          successRequestCount: Number(row.successRequestCount || 0),
+          totalRequestCount: Number(row.totalRequestCount || 0),
         })),
         recentRequests: requestsResult.rows.map((row) => ({
           displayCodeLast4: row.displayCodeLast4 as string | null,

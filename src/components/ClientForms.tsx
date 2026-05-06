@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 type ApiState<T> = {
   data?: T;
@@ -72,6 +72,8 @@ type AccountLogsData = {
     activatedAt: string | null;
     validUntil: string | null;
     wechatName: string | null;
+    successRequestCount: number;
+    totalRequestCount: number;
   }>;
   recentRequests: Array<{
     displayCodeLast4: string | null;
@@ -132,8 +134,13 @@ export function RedeemForm() {
   }
 
   return (
-    <div className="hud-panel p-0">
-      <form onSubmit={redeem} className="p-5 pb-0 space-y-3">
+    <section className="hud-panel p-6 sm:p-7">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-400/70">Redeem</p>
+        <h2 className="mt-2 text-2xl font-semibold text-cyan-50">CDK 兑换取码</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">输入你的 CDK，校验后即可获取验证码，成功获取邮件才会扣除次数。</p>
+      </div>
+      <form onSubmit={redeem} className="space-y-3">
         <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="输入 CDK，例如 GM-XXXX-XXXX-XXXX" className="field" required />
         <button disabled={state.loading} className="btn">
           {state.loading ? "校验中..." : "兑换或查看 CDK"}
@@ -170,15 +177,17 @@ export function RedeemForm() {
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
 export function AccountLogsLookupForm() {
   const [state, setState] = useState<ApiState<{ data: AccountLogsData }>>({ loading: false });
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setExpandedKey(null);
     setState({ loading: true });
     const form = new FormData(event.currentTarget);
     try {
@@ -190,72 +199,89 @@ export function AccountLogsLookupForm() {
   }
 
   const logs = state.data?.data;
+  const cdkSummaries = useMemo(() => {
+    if (!logs) return [];
+    return logs.cdks.map((cdk, index) => {
+      const records = logs.recentRequests.filter((request) => request.displayCodeLast4 === cdk.displayCodeLast4 && request.wechatName === cdk.wechatName);
+      return {
+        ...cdk,
+        key: `${cdk.displayCodeLast4}-${cdk.wechatName || "unknown"}-${index}`,
+        records,
+      };
+    });
+  }, [logs]);
 
   return (
-    <section className="hud-panel p-5 space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold text-cyan-100">拼车监督查询</h2>
-        <p className="mt-2 text-sm text-slate-400">输入共享账号邮箱，查看绑定的 CDK 微信用户和近期取码记录。</p>
+    <section className="hud-panel p-6 sm:p-7">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-400/70">Supervision</p>
+        <h2 className="mt-2 text-2xl font-semibold text-cyan-50">拼车监督查询</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">输入共享账号邮箱，先看各用户成功取码统计，需要时再展开查看明细。</p>
       </div>
-      <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
+      <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[1fr_auto]">
         <input name="email" type="email" placeholder="共享账号邮箱" className="field" required />
         <button disabled={state.loading} className="btn sm:w-36">
           {state.loading ? "查询中..." : "查询日志"}
         </button>
       </form>
-      {state.error && <p className="text-sm text-rose-400">{state.error}</p>}
-      {logs && !logs.account && <p className="text-sm text-slate-400">未查询到该邮箱的拼车记录，或该账号暂无公开记录。</p>}
+      {state.error && <p className="mt-4 text-sm text-rose-400">{state.error}</p>}
+      {logs && !logs.account && <p className="mt-5 text-sm text-slate-400">未查询到该邮箱的拼车记录，或该账号暂无公开记录。</p>}
       {logs?.account && (
-        <div className="space-y-5 border-t border-cyan-500/15 pt-5">
-          <p className="text-sm text-cyan-300">共享邮箱：<span className="text-cyan-100">{logs.account.loginEmail}</span></p>
-          <div className="space-y-3">
-            <h3 className="font-semibold text-cyan-100">CDK 绑定用户</h3>
-            {logs.cdks.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[620px] text-left text-sm">
-                  <thead className="text-slate-400">
-                    <tr className="border-b border-cyan-500/15">
-                      <th className="py-2 pr-3">CDK</th>
-                      <th className="py-2 pr-3">微信用户</th>
-                      <th className="py-2 pr-3">状态</th>
-                      <th className="py-2 pr-3">次数</th>
-                      <th className="py-2 pr-3">有效期</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cyan-500/10 text-slate-300">
-                    {logs.cdks.map((cdk, index) => (
-                      <tr key={`${cdk.displayCodeLast4}-${index}`}>
-                        <td className="py-2 pr-3 font-mono text-cyan-100">****{cdk.displayCodeLast4}</td>
-                        <td className="py-2 pr-3">{cdk.wechatName || "未绑定"}</td>
-                        <td className="py-2 pr-3">{cdk.status}</td>
-                        <td className="py-2 pr-3">{cdk.remainingUses}/{cdk.maxUses}</td>
-                        <td className="py-2 pr-3">{cdk.validUntil ? formatProviderTime(cdk.validUntil) : "未激活"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">该账号暂无 CDK 记录。</p>
-            )}
+        <div className="mt-6 space-y-4 border-t border-cyan-500/15 pt-5">
+          <div className="rounded-2xl border border-cyan-500/10 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-100">
+            共享邮箱：<span className="font-semibold">{logs.account.loginEmail}</span>
           </div>
-          <div className="space-y-3">
-            <h3 className="font-semibold text-cyan-100">近期取码记录</h3>
-            {logs.recentRequests.length > 0 ? (
-              <div className="space-y-3">
-                {logs.recentRequests.map((request, index) => (
-                  <div key={`${request.createdAt}-${index}`} className="rounded-2xl border border-cyan-500/15 bg-slate-950/40 p-3 text-sm text-slate-300">
-                    <p className="text-cyan-100">{request.wechatName || "未知用户"} / {request.displayCodeLast4 ? `****${request.displayCodeLast4}` : "无 CDK"}</p>
-                    <p className="mt-1">状态：{request.status}</p>
-                    <p>创建时间：{formatProviderTime(request.createdAt)}</p>
-                    {request.completedAt && <p>完成时间：{formatProviderTime(request.completedAt)}</p>}
+          {cdkSummaries.length > 0 ? (
+            <div className="space-y-3">
+              {cdkSummaries.map((summary) => {
+                const expanded = expandedKey === summary.key;
+                return (
+                  <div key={summary.key} className="overflow-hidden rounded-2xl border border-cyan-500/15 bg-slate-950/35">
+                    <button type="button" onClick={() => setExpandedKey(expanded ? null : summary.key)} className="w-full p-4 text-left transition-colors hover:bg-cyan-500/5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-lg font-semibold text-cyan-50">{summary.wechatName || "未绑定用户"}</p>
+                          <p className="mt-1 text-sm text-slate-400">CDK ****{summary.displayCodeLast4} · {summary.status} · 剩余 {summary.remainingUses}/{summary.maxUses}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-center sm:w-56">
+                          <div className="rounded-xl bg-emerald-500/10 px-3 py-2">
+                            <p className="text-2xl font-bold text-emerald-300">{summary.successRequestCount}</p>
+                            <p className="text-xs text-emerald-100/70">成功取码</p>
+                          </div>
+                          <div className="rounded-xl bg-cyan-500/10 px-3 py-2">
+                            <p className="text-2xl font-bold text-cyan-200">{summary.totalRequestCount}</p>
+                            <p className="text-xs text-cyan-100/70">总请求</p>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500">有效期：{summary.validUntil ? formatProviderTime(summary.validUntil) : "未激活"} · {expanded ? "点击收起明细" : "点击查看明细"}</p>
+                    </button>
+                    {expanded && (
+                      <div className="max-h-80 overflow-y-auto border-t border-cyan-500/10 p-4">
+                        {summary.records.length > 0 ? (
+                          <div className="space-y-2">
+                            {summary.records.map((request, index) => (
+                              <div key={`${request.createdAt}-${index}`} className="rounded-xl border border-cyan-500/10 bg-slate-950/55 p-3 text-sm text-slate-300">
+                                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                  <p className="font-semibold text-cyan-100">{request.status}</p>
+                                  <p className="text-slate-400">{formatProviderTime(request.createdAt)}</p>
+                                </div>
+                                {request.completedAt && <p className="mt-1 text-slate-500">完成时间：{formatProviderTime(request.completedAt)}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-400">暂无可展示的近期明细。</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-400">该账号暂无近期取码记录。</p>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">该账号暂无 CDK 记录。</p>
+          )}
         </div>
       )}
     </section>
