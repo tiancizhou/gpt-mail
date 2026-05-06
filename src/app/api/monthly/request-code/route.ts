@@ -1,7 +1,6 @@
-import { EmailCodeRequestStatus, EmailCodeSourceType } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
-import { prisma } from "@/server/db/prisma";
+import { db, generateId } from "@/server/db/db";
 import { checkRateLimit } from "@/server/security/rateLimit";
 import { getIpHash } from "@/server/security/request";
 import { fetchVerificationCode } from "@/server/services/emailCodeService";
@@ -22,35 +21,28 @@ export async function POST(request: NextRequest) {
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const usedToday = await prisma.emailCodeRequest.count({
-    where: {
-      userId: user!.id,
-      gptAccountId: body.gptAccountId,
-      sourceType: EmailCodeSourceType.MONTHLY,
-      status: EmailCodeRequestStatus.SUCCESS,
-      createdAt: { gte: todayStart },
-    },
+  const usedResult = await db.execute({
+    sql: "SELECT COUNT(*) as cnt FROM EmailCodeRequest WHERE userId = ? AND gptAccountId = ? AND sourceType = 'MONTHLY' AND status = 'SUCCESS' AND createdAt >= ?",
+    args: [user!.id, body.gptAccountId, todayStart.toISOString()],
   });
+  const usedToday = usedResult.rows[0].cnt as number;
   if (usedToday >= membership.requestLimitPerDay) {
     return NextResponse.json({ error: "今天取码次数已用完" }, { status: 429 });
   }
 
-  const requestRecord = await prisma.emailCodeRequest.create({
-    data: {
-      sourceType: EmailCodeSourceType.MONTHLY,
-      userId: user!.id,
-      gptAccountId: membership.gptAccountId,
-      targetEmail: membership.gptAccount.loginEmail,
-      status: EmailCodeRequestStatus.PENDING,
-    },
+  const requestId = generateId();
+  await db.execute({
+    sql: "INSERT INTO EmailCodeRequest (id, sourceType, userId, gptAccountId, targetEmail, status, createdAt) VALUES (?, 'MONTHLY', ?, ?, ?, 'PENDING', strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    args: [requestId, user!.id, membership.gptAccountId, membership.gptAccount.loginEmail],
   });
+  const requestResult = await db.execute({ sql: "SELECT createdAt FROM EmailCodeRequest WHERE id = ?", args: [requestId] });
 
   const data = await fetchVerificationCode({
-    requestId: requestRecord.id,
-    sourceType: EmailCodeSourceType.MONTHLY,
+    requestId,
+    sourceType: "MONTHLY",
     gptAccountId: membership.gptAccountId,
     targetEmail: membership.gptAccount.loginEmail,
-    startedAt: requestRecord.createdAt,
+    startedAt: new Date(requestResult.rows[0].createdAt as string),
   });
 
   return NextResponse.json({ data });

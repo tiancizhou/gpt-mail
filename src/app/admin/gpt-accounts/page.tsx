@@ -1,13 +1,9 @@
 import Link from "next/link";
 import { AdminForms } from "@/components/ClientForms";
-import { prisma } from "@/server/db/prisma";
+import { listGptAccountsForAdmin } from "@/server/db/queries";
 
 export default async function GptAccountsPage() {
-  const accounts = await prisma.gptAccount.findMany({
-    where: { status: { not: "ARCHIVED" } },
-    include: { _count: { select: { memberships: true, cdks: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const accounts = await listGptAccountsForAdmin();
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-6 py-12">

@@ -1,11 +1,11 @@
 import "server-only";
 
-import { UserRole, UserStatus } from "@prisma/client";
 import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "@/server/config/env";
-import { prisma } from "@/server/db/prisma";
+import { db } from "@/server/db/db";
+import type { UserRole } from "@/server/db/types";
 
 const sessionCookieName = "gpt_mail_session";
 const secret = new TextEncoder().encode(env.SESSION_SECRET);
@@ -54,14 +54,15 @@ export async function getSessionUserFromToken(token?: string): Promise<SessionUs
     const id = typeof payload.id === "string" ? payload.id : null;
     if (!id) return null;
 
-    const user = await prisma.user.findUnique({ where: { id } });
-    if (!user || user.status !== UserStatus.ACTIVE) return null;
+    const result = await db.execute({ sql: "SELECT id, email, role, name, status FROM User WHERE id = ?", args: [id] });
+    const user = result.rows[0];
+    if (!user || user.status !== "ACTIVE") return null;
 
     return {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      name: user.name,
+      id: user.id as string,
+      email: user.email as string,
+      role: user.role as UserRole,
+      name: user.name as string | null,
     };
   } catch {
     return null;
@@ -88,7 +89,7 @@ export async function requireUser(request: NextRequest) {
 export async function requireAdmin(request: NextRequest) {
   const result = await requireUser(request);
   if (result.response) return result;
-  if (result.user?.role !== UserRole.ADMIN) {
+  if (result.user?.role !== "ADMIN") {
     return { user: null, response: NextResponse.json({ error: "需要管理员权限" }, { status: 403 }) };
   }
   return result;

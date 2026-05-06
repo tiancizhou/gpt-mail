@@ -1,15 +1,14 @@
 import "dotenv/config";
-
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+import { createClient } from "@libsql/client";
 import { hashPassword } from "../src/server/auth/password";
 
-const databaseUrl = process.env.DATABASE_URL || "file:./dev.db";
-const sqlitePath = databaseUrl.startsWith("file:") ? databaseUrl.slice(5) : databaseUrl;
-const adapter = new PrismaBetterSqlite3({ url: sqlitePath });
-const prisma = new PrismaClient({ adapter });
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const dbPath = resolve(__dirname, "dev.db");
 
 async function main() {
+  const db = createClient({ url: `file:${dbPath}` });
   const email = process.env.ADMIN_BOOTSTRAP_EMAIL;
   const password = process.env.ADMIN_BOOTSTRAP_PASSWORD;
 
@@ -17,26 +16,27 @@ async function main() {
     throw new Error("ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD are required");
   }
 
-  await prisma.user.upsert({
-    where: { email },
-    update: {
-      passwordHash: await hashPassword(password),
-      role: UserRole.ADMIN,
-    },
-    create: {
-      email,
-      passwordHash: await hashPassword(password),
-      role: UserRole.ADMIN,
-      name: "管理员",
-    },
-  });
+  const existing = await db.execute({ sql: "SELECT id FROM User WHERE email = ?", args: [email] });
+
+  if (existing.rows.length > 0) {
+    await db.execute({
+      sql: "UPDATE User SET passwordHash = ?, role = 'ADMIN', updatedAt = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE email = ?",
+      args: [await hashPassword(password), email],
+    });
+    console.log("Admin user updated.");
+  } else {
+    const id = crypto.randomUUID();
+    await db.execute({
+      sql: "INSERT INTO User (id, email, passwordHash, role, name, status, createdAt, updatedAt) VALUES (?, ?, ?, 'ADMIN', '管理员', 'ACTIVE', strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+      args: [id, email, await hashPassword(password)],
+    });
+    console.log("Admin user created.");
+  }
+
+  await db.close();
 }
 
-main()
-  .finally(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
-    console.error(error);
-    process.exit(1);
-  });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

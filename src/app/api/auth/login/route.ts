@@ -1,6 +1,6 @@
-import { UserStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/server/db/prisma";
+import { db } from "@/server/db/db";
+import type { UserRole } from "@/server/db/types";
 import { verifyPassword } from "@/server/auth/password";
 import { setSessionCookie } from "@/server/auth/session";
 import { checkRateLimit } from "@/server/security/rateLimit";
@@ -14,16 +14,18 @@ export async function POST(request: NextRequest) {
   if (!limited.allowed) return NextResponse.json({ error: "登录尝试过多，请稍后再试" }, { status: 429 });
 
   const body = loginSchema.parse(await request.json());
-  const user = await prisma.user.findUnique({ where: { email: body.email } });
+  const result = await db.execute({ sql: "SELECT * FROM User WHERE email = ?", args: [body.email] });
+  const user = result.rows[0];
 
-  if (!user || user.status !== UserStatus.ACTIVE || !(await verifyPassword(body.password, user.passwordHash))) {
+  if (!user || user.status !== "ACTIVE" || !(await verifyPassword(body.password, user.passwordHash as string))) {
     return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
   }
 
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  await writeAuditLog({ actorUserId: user.id, action: "LOGIN", ipHash, userAgent: getUserAgent(request) });
+  await db.execute({ sql: "UPDATE User SET lastLoginAt = strftime('%Y-%m-%dT%H:%M:%fZ','now'), updatedAt = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?", args: [user.id] });
+  await writeAuditLog({ actorUserId: user.id as string, action: "LOGIN", ipHash, userAgent: getUserAgent(request) });
 
-  const response = NextResponse.json({ user: { id: user.id, email: user.email, role: user.role, name: user.name } });
-  await setSessionCookie(response, { id: user.id, email: user.email, role: user.role, name: user.name });
+  const sessionUser = { id: user.id as string, email: user.email as string, role: user.role as UserRole, name: user.name as string | null };
+  const response = NextResponse.json({ user: sessionUser });
+  await setSessionCookie(response, sessionUser);
   return response;
 }

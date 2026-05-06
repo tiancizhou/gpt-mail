@@ -1,5 +1,5 @@
-import { GptAccountStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
+import type { GptAccountStatus } from "@/server/db/types";
 import { requireAdmin } from "@/server/auth/session";
 import { writeAuditLog } from "@/server/security/auditLog";
 import { getIpHash, getUserAgent } from "@/server/security/request";

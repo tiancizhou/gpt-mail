@@ -1,8 +1,8 @@
 import "server-only";
 
-import { EmailCodeRequestStatus, EmailCodeSourceType } from "@prisma/client";
 import { env } from "@/server/config/env";
-import { prisma } from "@/server/db/prisma";
+import { db } from "@/server/db/db";
+import type { EmailCodeSourceType } from "@/server/db/types";
 import { DomainEmailMessage, listDomainEmails } from "@/server/email/domainEmailClient";
 
 function sleep(ms: number) {
@@ -65,13 +65,9 @@ export async function fetchVerificationCode(input: {
       }
 
       if (emails.length > 0) {
-        await prisma.emailCodeRequest.update({
-          where: { id: input.requestId },
-          data: {
-            status: EmailCodeRequestStatus.SUCCESS,
-            providerMessageId: String(emails[0].emailId),
-            completedAt: new Date(),
-          },
+        await db.execute({
+          sql: "UPDATE EmailCodeRequest SET status = 'SUCCESS', providerMessageId = ?, completedAt = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+          args: [String(emails[0].emailId), input.requestId],
         });
         return { emails };
       }
@@ -82,13 +78,9 @@ export async function fetchVerificationCode(input: {
     await sleep(env.EMAIL_CODE_POLL_INTERVAL_SECONDS * 1000);
   }
 
-  await prisma.emailCodeRequest.update({
-    where: { id: input.requestId },
-    data: {
-      status: EmailCodeRequestStatus.TIMEOUT,
-      errorMessage: lastError || "未找到验证码邮件",
-      completedAt: new Date(),
-    },
+  await db.execute({
+    sql: "UPDATE EmailCodeRequest SET status = 'TIMEOUT', errorMessage = ?, completedAt = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+    args: [lastError || "未找到验证码邮件", input.requestId],
   });
 
   throw new Error(lastError || "未找到验证码邮件");

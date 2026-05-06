@@ -1,6 +1,6 @@
 import "server-only";
 
-import { prisma } from "@/server/db/prisma";
+import { db, generateId } from "@/server/db/db";
 
 type AuditLogInput = {
   actorUserId?: string;
@@ -13,15 +13,17 @@ type AuditLogInput = {
 };
 
 export async function writeAuditLog(input: AuditLogInput) {
-  await prisma.auditLog.create({
-    data: {
-      actorUserId: input.actorUserId,
-      action: input.action,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      metadataJson: input.metadata ? JSON.stringify(input.metadata) : undefined,
-      ipHash: input.ipHash,
-      userAgent: input.userAgent,
-    },
+  await db.execute({
+    sql: "INSERT INTO AuditLog (id, actorUserId, action, entityType, entityId, metadataJson, ipHash, userAgent, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+    args: [
+      generateId(),
+      input.actorUserId ?? null,
+      input.action,
+      input.entityType ?? null,
+      input.entityId ?? null,
+      input.metadata ? JSON.stringify(input.metadata) : null,
+      input.ipHash ?? null,
+      input.userAgent ?? null,
+    ],
   });
 }

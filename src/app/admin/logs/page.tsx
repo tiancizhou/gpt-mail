@@ -1,14 +1,8 @@
-import { EmailCodeSourceType } from "@prisma/client";
 import Link from "next/link";
-import { prisma } from "@/server/db/prisma";
+import { listCdkEmailRequests } from "@/server/db/queries";
 
 export default async function LogsPage() {
-  const requests = await prisma.emailCodeRequest.findMany({
-    where: { sourceType: EmailCodeSourceType.CDK },
-    include: { gptAccount: true, cdk: { include: { redeemedByUser: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  const requests = await listCdkEmailRequests();
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-6 py-12">
@@ -19,8 +13,8 @@ export default async function LogsPage() {
           <thead className="bg-slate-950 text-slate-300"><tr><th className="p-4">时间</th><th>微信名</th><th>CDK</th><th>GPT 账号</th><th>状态</th><th>验证码</th></tr></thead>
           <tbody>
             {requests.map((item) => (
-              <tr key={item.id} className="border-t border-slate-800">
-                <td className="p-4">{item.createdAt.toLocaleString()}</td>
+              <tr key={item.id as string} className="border-t border-slate-800">
+                <td className="p-4">{new Date(item.createdAt as string).toLocaleString()}</td>
                 <td>{item.cdk?.redeemedByUser?.wechatName || item.cdk?.redeemedByFingerprint || "未绑定"}</td>
                 <td className="font-mono">{item.cdk?.code || (item.cdk ? `旧数据-${item.cdk.displayCodeLast4}` : "")}</td>
                 <td>{item.gptAccount.label}</td>

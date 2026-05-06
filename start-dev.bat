@@ -6,33 +6,29 @@ echo Starting GPT Mail development setup...
 echo Project: %cd%
 echo.
 
-echo Installing npm dependencies...
-call npm install
-if errorlevel 1 goto failed
+set NEED_INSTALL=0
+if not exist "node_modules" set NEED_INSTALL=1
+if not exist "node_modules\.bin\next.cmd" set NEED_INSTALL=1
+if not exist "node_modules\@libsql\client" set NEED_INSTALL=1
+if "%NEED_INSTALL%"=="0" (
+  echo npm dependencies are complete. Skipping npm install.
+) else (
+  echo npm dependencies are missing or incomplete. Running npm install...
+  call npm install
+  if errorlevel 1 goto install_failed
+)
 
-echo.
-set /p INIT_DB=Do you need to initialize or update the database? This will run Prisma generate, migrate, and seed. [y/N]:
-if /I "%INIT_DB%"=="Y" goto init_db
-if /I "%INIT_DB%"=="YES" goto init_db
-goto start_server
+if not exist "prisma\dev.db" (
+  echo.
+  echo Database not found. Initializing database...
+  call npm run db:init
+  if errorlevel 1 goto failed
+  call npm run db:seed
+  if errorlevel 1 goto failed
+) else (
+  echo Database already exists. Skipping initialization.
+)
 
-:init_db
-echo.
-echo Generating Prisma client...
-call npx prisma generate
-if errorlevel 1 goto failed
-
-echo.
-echo Running database migrations...
-call npx prisma migrate dev
-if errorlevel 1 goto failed
-
-echo.
-echo Seeding database...
-call npm run prisma:seed
-if errorlevel 1 goto failed
-
-:start_server
 echo.
 echo Checking port 3000...
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do (
@@ -46,6 +42,13 @@ call npm run dev
 if errorlevel 1 goto failed
 
 goto end
+
+:install_failed
+echo.
+echo npm install failed. Please check the error messages above, then run this script again.
+echo You can also retry after closing editors, terminals, or dev servers that may be locking node_modules.
+pause >nul
+exit /b 1
 
 :failed
 echo.
