@@ -62,6 +62,23 @@ type VerificationEmail = {
   text: string;
 };
 
+function formatProviderTime(value: string) {
+  const normalized = value.trim().replace(" ", "T");
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+  const date = new Date(hasTimezone ? normalized : `${normalized}Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 export function RedeemForm() {
   const [code, setCode] = useState("");
   const [state, setState] = useState<ApiState<{ data: { remainingUses: number; validUntil: string | null; status: string } }>>({ loading: false });
@@ -125,7 +142,7 @@ export function RedeemForm() {
                 <p className="font-semibold text-cyan-100">{email.subject || "无主题"}</p>
                 <p>发件人：{email.sendName ? `${email.sendName} <${email.sendEmail}>` : email.sendEmail}</p>
                 <p>收件人：{email.toName ? `${email.toName} <${email.toEmail}>` : email.toEmail}</p>
-                <p>时间：{email.createTime}</p>
+                <p>时间：{formatProviderTime(email.createTime)}</p>
               </div>
               {email.text && <pre className="mt-3 whitespace-pre-wrap break-words text-sm text-slate-300">{email.text}</pre>}
               {email.content && <iframe title={`邮件 HTML ${email.emailId}`} sandbox="" srcDoc={email.content} className="mt-3 h-80 w-full bg-white" />}
