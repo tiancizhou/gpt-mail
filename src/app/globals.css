@@ -37,12 +37,12 @@ body {
 
 .hud-page {
   background:
-    radial-gradient(circle at 20% 10%, rgba(34, 211, 238, 0.12), transparent 28rem),
-    radial-gradient(circle at 85% 20%, rgba(14, 165, 233, 0.08), transparent 30rem),
+    radial-gradient(circle at 20% 8%, rgba(34, 211, 238, 0.13), transparent 25rem),
+    radial-gradient(circle at 88% 18%, rgba(14, 165, 233, 0.08), transparent 28rem),
     linear-gradient(180deg, #020617 0%, #08111f 52%, #020617 100%);
   min-height: 100vh;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .hud-page::before {
@@ -70,13 +70,13 @@ body {
 /* HUD card base — glass panel with cyan glow border */
 .hud-panel {
   position: relative;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(8, 13, 25, 0.92));
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(8, 13, 25, 0.94));
   border: 1px solid rgba(34, 211, 238, 0.18);
   border-radius: 1.25rem;
   backdrop-filter: blur(14px);
   box-shadow:
-    0 24px 80px rgba(2, 6, 23, 0.45),
-    0 0 24px rgba(14, 165, 233, 0.08),
+    0 22px 70px rgba(2, 6, 23, 0.42),
+    0 0 22px rgba(14, 165, 233, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -123,7 +123,7 @@ body {
   border-radius: 0.875rem;
   border: 1px solid rgba(14, 165, 233, 0.18);
   background: rgba(2, 6, 23, 0.66);
-  padding: 0.95rem 1rem;
+  padding: 0.82rem 0.95rem;
   color: #e5f2ff;
   outline: none;
   transition: border-color 200ms ease-out, box-shadow 200ms ease-out, background 200ms ease-out;
@@ -143,7 +143,7 @@ body {
   width: 100%;
   border-radius: 0.875rem;
   background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-  padding: 0.95rem 1rem;
+  padding: 0.82rem 0.95rem;
   font-weight: 700;
   color: #fff;
   transition: box-shadow 250ms ease, transform 150ms ease, filter 150ms ease;

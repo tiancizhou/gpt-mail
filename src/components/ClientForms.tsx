@@ -134,8 +134,8 @@ export function RedeemForm() {
   }
 
   return (
-    <section className="hud-panel p-6 sm:p-7">
-      <div className="mb-5">
+    <section className="hud-panel p-5 sm:p-6">
+      <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-400/70">Redeem</p>
         <h2 className="mt-2 text-2xl font-semibold text-cyan-50">CDK 兑换取码</h2>
         <p className="mt-2 text-sm leading-6 text-slate-400">输入你的 CDK，校验后即可获取验证码，成功获取邮件才会扣除次数。</p>
@@ -146,9 +146,9 @@ export function RedeemForm() {
           {state.loading ? "校验中..." : "兑换或查看 CDK"}
         </button>
       </form>
-      {state.error && <p className="px-5 pt-4 text-sm text-rose-400">{state.error}</p>}
+      {state.error && <p className="mt-4 text-sm text-rose-400">{state.error}</p>}
       {state.data && (
-        <div className="mx-5 mt-5 border-t border-cyan-500/15 pt-4 space-y-3">
+        <div className="mt-5 border-t border-cyan-500/15 pt-4 space-y-3">
           <p className="text-cyan-300 text-sm">状态：<span className="text-cyan-100">{state.data.data.status}</span></p>
           <p className="text-cyan-300 text-sm">剩余取码次数：<span className="text-cyan-100">{state.data.data.remainingUses}</span></p>
           <p className="text-cyan-300 text-sm">有效期：<span className="text-cyan-100">{state.data.data.validUntil ? new Date(state.data.data.validUntil).toLocaleString() : "未激活"}</span></p>
@@ -212,8 +212,8 @@ export function AccountLogsLookupForm() {
   }, [logs]);
 
   return (
-    <section className="hud-panel p-6 sm:p-7">
-      <div className="mb-5">
+    <section className="hud-panel flex max-h-[calc(100vh-9rem)] min-h-[26rem] flex-col p-5 sm:p-6">
+      <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-400/70">Supervision</p>
         <h2 className="mt-2 text-2xl font-semibold text-cyan-50">拼车监督查询</h2>
         <p className="mt-2 text-sm leading-6 text-slate-400">输入共享账号邮箱，先看各用户成功取码统计，需要时再展开查看明细。</p>
@@ -227,37 +227,37 @@ export function AccountLogsLookupForm() {
       {state.error && <p className="mt-4 text-sm text-rose-400">{state.error}</p>}
       {logs && !logs.account && <p className="mt-5 text-sm text-slate-400">未查询到该邮箱的拼车记录，或该账号暂无公开记录。</p>}
       {logs?.account && (
-        <div className="mt-6 space-y-4 border-t border-cyan-500/15 pt-5">
-          <div className="rounded-2xl border border-cyan-500/10 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-100">
+        <div className="mt-5 flex min-h-0 flex-1 flex-col border-t border-cyan-500/15 pt-4">
+          <div className="mb-3 rounded-2xl border border-cyan-500/10 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-100">
             共享邮箱：<span className="font-semibold">{logs.account.loginEmail}</span>
           </div>
           {cdkSummaries.length > 0 ? (
-            <div className="space-y-3">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
               {cdkSummaries.map((summary) => {
                 const expanded = expandedKey === summary.key;
                 return (
                   <div key={summary.key} className="overflow-hidden rounded-2xl border border-cyan-500/15 bg-slate-950/35">
-                    <button type="button" onClick={() => setExpandedKey(expanded ? null : summary.key)} className="w-full p-4 text-left transition-colors hover:bg-cyan-500/5">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-lg font-semibold text-cyan-50">{summary.wechatName || "未绑定用户"}</p>
-                          <p className="mt-1 text-sm text-slate-400">CDK ****{summary.displayCodeLast4} · {summary.status} · 剩余 {summary.remainingUses}/{summary.maxUses}</p>
+                    <button type="button" onClick={() => setExpandedKey(expanded ? null : summary.key)} className="w-full p-3.5 text-left transition-colors hover:bg-cyan-500/5">
+                      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                        <div className="min-w-0">
+                          <p className="truncate text-lg font-semibold text-cyan-50">{summary.wechatName || "未绑定用户"}</p>
+                          <p className="mt-1 truncate text-sm text-slate-400">CDK ****{summary.displayCodeLast4} · {summary.status} · 剩余 {summary.remainingUses}/{summary.maxUses}</p>
+                          <p className="mt-2 text-xs text-slate-500">有效期：{summary.validUntil ? formatProviderTime(summary.validUntil) : "未激活"} · {expanded ? "点击收起明细" : "点击查看明细"}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 text-center sm:w-56">
+                        <div className="grid grid-cols-2 gap-2 text-center sm:w-48">
                           <div className="rounded-xl bg-emerald-500/10 px-3 py-2">
-                            <p className="text-2xl font-bold text-emerald-300">{summary.successRequestCount}</p>
+                            <p className="text-xl font-bold text-emerald-300">{summary.successRequestCount}</p>
                             <p className="text-xs text-emerald-100/70">成功取码</p>
                           </div>
                           <div className="rounded-xl bg-cyan-500/10 px-3 py-2">
-                            <p className="text-2xl font-bold text-cyan-200">{summary.totalRequestCount}</p>
+                            <p className="text-xl font-bold text-cyan-200">{summary.totalRequestCount}</p>
                             <p className="text-xs text-cyan-100/70">总请求</p>
                           </div>
                         </div>
                       </div>
-                      <p className="mt-3 text-xs text-slate-500">有效期：{summary.validUntil ? formatProviderTime(summary.validUntil) : "未激活"} · {expanded ? "点击收起明细" : "点击查看明细"}</p>
                     </button>
                     {expanded && (
-                      <div className="max-h-80 overflow-y-auto border-t border-cyan-500/10 p-4">
+                      <div className="max-h-56 overflow-y-auto border-t border-cyan-500/10 p-3">
                         {summary.records.length > 0 ? (
                           <div className="space-y-2">
                             {summary.records.map((request, index) => (
