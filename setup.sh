@@ -22,17 +22,17 @@ require_command() {
   fi
 }
 
-free_port_3000() {
+free_port_3001() {
   if command -v lsof >/dev/null 2>&1; then
     local port_pid
-    port_pid=$(lsof -ti:3000 2>/dev/null || true)
+    port_pid=$(lsof -ti:3001 2>/dev/null || true)
     if [ -n "$port_pid" ]; then
-      warn "端口 3000 被占用 (PID: $port_pid)，正在释放..."
+      warn "端口 3001 被占用 (PID: $port_pid)，正在释放..."
       kill -9 $port_pid 2>/dev/null || true
       sleep 1
     fi
   else
-    warn "未检测到 lsof，跳过端口 3000 占用检查。"
+    warn "未检测到 lsof，跳过端口 3001 占用检查。"
   fi
 }
 
@@ -121,16 +121,16 @@ start_server() {
   read -rp "$(echo -e ${CYAN}请选择 [1/2，默认 1]: ${NC})" MODE
   MODE=${MODE:-1}
 
-  free_port_3000
+  free_port_3001
 
   if [ "$MODE" = "2" ]; then
     info "构建生产版本..."
     npm run build
     ok "构建完成。"
-    info "启动生产服务器：http://localhost:3000"
+    info "启动生产服务器：http://localhost:3001"
     npm run start
   else
-    info "启动开发服务器：http://localhost:3000"
+    info "启动开发服务器：http://localhost:3001"
     npm run dev
   fi
 }
