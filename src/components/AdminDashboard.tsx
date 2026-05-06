@@ -10,6 +10,7 @@ import {
   KeyRound,
   Loader2,
   Mail,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -59,6 +60,7 @@ type CdkLog = {
 type Toast = { type: "success" | "error"; message: string };
 type StatusFilter = "ALL" | "ACTIVE" | "DISABLED";
 type ConfirmState = { type: "account"; account: Account } | { type: "cdk"; cdk: Cdk };
+type EditCapacityState = { account: Account };
 
 type DashboardStats = {
   totalAccounts: number;
@@ -88,6 +90,17 @@ async function deleteJson<T>(url: string) {
   return data as T;
 }
 
+async function patchJson<T>(url: string, body: unknown) {
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "保存失败");
+  return data as T;
+}
+
 export function AdminDashboard({ initialAccounts }: { initialAccounts: Account[] }) {
   const [accounts, setAccounts] = useState(initialAccounts);
   const [selectedAccountId, setSelectedAccountId] = useState(initialAccounts[0]?.id || "");
@@ -103,6 +116,7 @@ export function AdminDashboard({ initialAccounts }: { initialAccounts: Account[]
   const [isReloading, setIsReloading] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [editCapacityState, setEditCapacityState] = useState<EditCapacityState | null>(null);
   const [copiedCdkId, setCopiedCdkId] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
 
@@ -212,6 +226,28 @@ export function AdminDashboard({ initialAccounts }: { initialAccounts: Account[]
     setConfirmState({ type: "cdk", cdk });
   }
 
+  function requestEditCapacity(account: Account) {
+    setEditCapacityState({ account });
+  }
+
+  async function updateCapacity(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editCapacityState) return;
+    const form = new FormData(event.currentTarget);
+    const capacity = Number(form.get("capacity") || editCapacityState.account.capacity);
+    setLoadingAction(`update-capacity-${editCapacityState.account.id}`);
+    try {
+      await patchJson<{ data: Account }>(`/api/admin/gpt-accounts/${editCapacityState.account.id}`, { capacity });
+      showToast("success", "车位数量已更新");
+      setEditCapacityState(null);
+      await reloadAccounts(editCapacityState.account.id, { silent: true });
+    } catch (error) {
+      showToast("error", getErrorMessage(error, "保存车位数量失败"));
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
   async function confirmDelete() {
     if (!confirmState) return;
     const action = confirmState.type === "account" ? `delete-account-${confirmState.account.id}` : `delete-cdk-${confirmState.cdk.id}`;
@@ -292,6 +328,7 @@ export function AdminDashboard({ initialAccounts }: { initialAccounts: Account[]
           onStatusFilterChange={setStatusFilter}
           onSelectAccount={setSelectedAccountId}
           onCreateCdk={openCdkModal}
+          onEditCapacity={requestEditCapacity}
           onDeleteAccount={requestDeleteAccount}
           onAddAccount={() => setAddAccountOpen(true)}
         />
@@ -301,6 +338,7 @@ export function AdminDashboard({ initialAccounts }: { initialAccounts: Account[]
           copiedCdkId={copiedCdkId}
           now={now}
           onCreateCdk={openCdkModal}
+          onEditCapacity={requestEditCapacity}
           onDeleteCdk={requestDeleteCdk}
           onShowLogs={(cdk) => void showCdkLogs(cdk)}
           onCopyCdk={(cdk) => void copyCode(getCdkDisplayCode(cdk), cdk.id)}
@@ -356,6 +394,18 @@ export function AdminDashboard({ initialAccounts }: { initialAccounts: Account[]
       {logCdk && (
         <Modal title="CDK 验证码日志" description={getCdkDisplayCode(logCdk)} onClose={() => setLogCdk(null)} wide>
           <CdkLogsTable logs={cdkLogs} loading={cdkLogsLoading} />
+        </Modal>
+      )}
+
+      {editCapacityState && (
+        <Modal title="修改车位数量" description={`${editCapacityState.account.label} · 当前使用 ${editCapacityState.account._count.memberships}/${editCapacityState.account.capacity}`} onClose={() => setEditCapacityState(null)}>
+          <form onSubmit={updateCapacity} className="space-y-4">
+            <Field label="车位容量"><input name="capacity" type="number" defaultValue={editCapacityState.account.capacity} min="1" max="10" className="field" required /></Field>
+            <button disabled={loadingAction === `update-capacity-${editCapacityState.account.id}`} className="btn inline-flex items-center justify-center gap-2" aria-label="保存车位数量">
+              {loadingAction === `update-capacity-${editCapacityState.account.id}` && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loadingAction === `update-capacity-${editCapacityState.account.id}` ? "保存中..." : "保存车位数量"}
+            </button>
+          </form>
         </Modal>
       )}
 
@@ -453,6 +503,7 @@ function AccountList(props: {
   onStatusFilterChange: (value: StatusFilter) => void;
   onSelectAccount: (id: string) => void;
   onCreateCdk: (account: Account) => void;
+  onEditCapacity: (account: Account) => void;
   onDeleteAccount: (account: Account) => void;
   onAddAccount: () => void;
 }) {
@@ -480,7 +531,7 @@ function AccountList(props: {
       </div>
       <div className="mt-4 space-y-3">
         {props.accounts.map((account) => (
-          <AccountCard key={account.id} account={account} selected={account.id === props.selectedAccountId} onSelect={() => props.onSelectAccount(account.id)} onCreateCdk={() => props.onCreateCdk(account)} onDelete={() => props.onDeleteAccount(account)} />
+          <AccountCard key={account.id} account={account} selected={account.id === props.selectedAccountId} onSelect={() => props.onSelectAccount(account.id)} onCreateCdk={() => props.onCreateCdk(account)} onEditCapacity={() => props.onEditCapacity(account)} onDelete={() => props.onDeleteAccount(account)} />
         ))}
         {props.totalAccounts === 0 && <EmptyState icon={<Users className="h-6 w-6" />} title="还没有 GPT 账号" description="创建第一个账号后即可分配车位并生成 CDK。" actionLabel="增加账号" onAction={props.onAddAccount} />}
         {props.totalAccounts > 0 && props.accounts.length === 0 && <EmptyState icon={<Search className="h-6 w-6" />} title="没有匹配的账号" description="尝试调整搜索关键词或状态筛选。" />}
@@ -489,7 +540,7 @@ function AccountList(props: {
   );
 }
 
-function AccountCard({ account, selected, onSelect, onCreateCdk, onDelete }: { account: Account; selected: boolean; onSelect: () => void; onCreateCdk: () => void; onDelete: () => void }) {
+function AccountCard({ account, selected, onSelect, onCreateCdk, onEditCapacity, onDelete }: { account: Account; selected: boolean; onSelect: () => void; onCreateCdk: () => void; onEditCapacity: () => void; onDelete: () => void }) {
   const usage = Math.min(100, Math.round((account._count.memberships / Math.max(account.capacity, 1)) * 100));
   return (
     <div className={clsx("group relative overflow-hidden rounded-3xl border p-4 transition duration-200", selected ? "border-cyan-300/60 bg-gradient-to-br from-cyan-500/15 via-blue-500/10 to-slate-900 shadow-lg shadow-cyan-950/30" : "border-white/10 bg-slate-950/40 hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-slate-900/80")}>
@@ -510,9 +561,12 @@ function AccountCard({ account, selected, onSelect, onCreateCdk, onDelete }: { a
           <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400" style={{ width: `${usage}%` }} />
         </div>
       </button>
-      <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+      <div className="mt-4 grid grid-cols-[1fr_auto_auto] gap-2">
         <button type="button" onClick={onCreateCdk} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-400/15 px-3 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/25" aria-label={`为 ${account.label} 生成 CDK`}>
           <KeyRound className="h-4 w-4" /> 生成 CDK
+        </button>
+        <button type="button" onClick={onEditCapacity} className="inline-flex items-center justify-center rounded-xl border border-cyan-400/20 px-3 py-2 text-cyan-200 transition hover:bg-cyan-400/10" aria-label={`修改账号 ${account.label} 的车位数量`}>
+          <Pencil className="h-4 w-4" />
         </button>
         <button type="button" onClick={onDelete} className="inline-flex items-center justify-center rounded-xl border border-rose-400/20 px-3 py-2 text-rose-200 transition hover:bg-rose-400/10" aria-label={`删除账号 ${account.label}`}>
           <Trash2 className="h-4 w-4" />
@@ -522,7 +576,7 @@ function AccountCard({ account, selected, onSelect, onCreateCdk, onDelete }: { a
   );
 }
 
-function AccountDetail({ account, copiedCdkId, now, onCreateCdk, onDeleteCdk, onShowLogs, onCopyCdk, onAddAccount }: { account: Account | null; copiedCdkId: string | null; now: number; onCreateCdk: (account: Account) => void; onDeleteCdk: (cdk: Cdk) => void; onShowLogs: (cdk: Cdk) => void; onCopyCdk: (cdk: Cdk) => void; onAddAccount: () => void }) {
+function AccountDetail({ account, copiedCdkId, now, onCreateCdk, onEditCapacity, onDeleteCdk, onShowLogs, onCopyCdk, onAddAccount }: { account: Account | null; copiedCdkId: string | null; now: number; onCreateCdk: (account: Account) => void; onEditCapacity: (account: Account) => void; onDeleteCdk: (cdk: Cdk) => void; onShowLogs: (cdk: Cdk) => void; onCopyCdk: (cdk: Cdk) => void; onAddAccount: () => void }) {
   if (!account) {
     return <section className="rounded-[2rem] border border-white/10 bg-slate-900/70 p-8 shadow-2xl shadow-slate-950/30 backdrop-blur"><EmptyState icon={<ShieldCheck className="h-7 w-7" />} title="请选择或创建一个账号" description="选择左侧账号后，这里会显示账号摘要和该账号生成的 CDK 列表。" actionLabel="增加账号" onAction={onAddAccount} /></section>;
   }
@@ -537,9 +591,14 @@ function AccountDetail({ account, copiedCdkId, now, onCreateCdk, onDeleteCdk, on
             </div>
             <p className="mt-2 flex items-center gap-2 text-sm text-slate-400"><Mail className="h-4 w-4" />{account.loginEmail}</p>
           </div>
-          <button type="button" onClick={() => onCreateCdk(account)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-400 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-950/30 transition hover:scale-[1.02]" aria-label={`为 ${account.label} 生成 CDK`}>
-            <KeyRound className="h-4 w-4" /> 生成 CDK
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => onEditCapacity(account)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-bold text-cyan-100 transition hover:bg-cyan-400/20" aria-label={`修改 ${account.label} 的车位数量`}>
+              <Pencil className="h-4 w-4" /> 改车位
+            </button>
+            <button type="button" onClick={() => onCreateCdk(account)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-400 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-950/30 transition hover:scale-[1.02]" aria-label={`为 ${account.label} 生成 CDK`}>
+              <KeyRound className="h-4 w-4" /> 生成 CDK
+            </button>
+          </div>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <SummaryTile label="车位使用" value={`${account._count.memberships}/${account.capacity}`} icon={<Users className="h-4 w-4" />} />
